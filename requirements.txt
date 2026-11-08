@@ -1,0 +1,2 @@
+# Nessuna dipendenza esterna - solo librerie standard Python
+# Python >= 3.8 consigliato, testato su 3.10+
