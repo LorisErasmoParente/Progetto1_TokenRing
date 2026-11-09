@@ -1,129 +1,120 @@
+Elaborato del corso di Intelligenza Artificiale Distribuita, Università San Raffaele
+Studente: Loris Erasmo Parente, matricola n° 0322600005
 
 # Progetto 1: Sistema di Transazioni Bancarie Distribuite con Mutua Esclusione a Token Ring
 
-**Corso:** Intelligenza Artificiale Distribuita - Università San Raffaele Roma  
-**Implementazione:** Python 3 - 4 nodi ATM su localhost - Token Ring
+**Linguaggio utilizzato:** Python 3
 
-## Architettura e Teoria (PDF Lezioni p.351-362)
+## Obiettivo del progetto
 
-Il sistema implementa fedelmente l'algoritmo Token Ring per la mutua esclusione:
+In questo progetto ho realizzato un sistema distribuito che simula 4 sportelli ATM che operano sullo stesso conto bancario.
 
-- **Topologia logica:** ATM1 → ATM2 → ATM3 → ATM4 → ATM1 (anello logico, rete fisica arbitraria su localhost)
-- **Assunzioni:** N=4 processi, canali punto-a-punto TCP affidabili tra successori, esiste esattamente un token, CS non preemptive
-- **Token:** Messaggio speciale JSON che circola continuamente. Solo il possessore può entrare in CS. Contiene saldo condiviso, seq number ed epoch (per tolleranza ai guasti come da p.359)
-- **Correttezza:**
-  - *Safety:* Al massimo un processo in CS perché al massimo un detentore del token (unicità token)
-  - *Liveness:* Ogni richiesta è infine soddisfatta perché token circola in tempo finito (0..N hop)
-  - *No starvation:* Rotazione garantisce possibilità per giro
-  - *Ordinamento:* Non garantisce happened-before, ordine dipende da posizione token (come da esempio p.357)
+Il problema da risolvere è che se due ATM modificassero il saldo nello stesso momento, il saldo finale sarebbe sbagliato. Per evitarlo ho usato l'algoritmo Token Ring per garantire la mutua esclusione: in ogni momento solo un ATM può modificare il saldo.
 
-## Risorsa Condivisa e Sezione Critica
+## Come funziona il sistema
 
-- **Risorsa:** Saldo conto bancario unico (nessuna memoria condivisa, ogni nodo ha memoria privata)
-- **Come è condiviso senza memoria condivisa:** Il saldo viaggia DENTRO il token. Ogni nodo legge il saldo dal token, valida, aggiorna atomicamente e scrive il nuovo valore nel token prima di inoltrarlo. Serializzazione garantita da mutua esclusione.
-- **Transazione = Sezione Critica atomica:**
-  1. Lettura saldo corrente dal token
-  2. Validazione (prelievo solo se saldo >= importo)
-  3. Aggiornamento saldo
-  4. Scrittura nuovo valore nel token
-  5. Log operazione
-
-## Struttura File
+I 4 nodi formano un anello logico:
 
 ```
-atm_node.py         # Implementazione completa nodo ATM (server + client + logica CS)
-requirements.txt    # Nessuna dipendenza esterna
-start_demo.sh       # Script avvio rapido per test (opzionale)
-README.md           # Questo file
+ATM1 -> ATM2 -> ATM3 -> ATM4 -> ATM1
 ```
 
-## Esecuzione - Istruzioni Esatte (Requisito Consegna)
+- Ogni ATM è un processo separato, avviato in un terminale diverso.
+- Non c'è memoria condivisa: ogni nodo ha la sua memoria privata.
+- I nodi comunicano solo tramite messaggi su localhost, con socket TCP. Ogni nodo conosce solo il suo successore.
+- Nel sistema esiste un solo token, che circola continuamente lungo l'anello.
+- Solo chi possiede il token può entrare nella sezione critica, cioè eseguire una transazione.
+- Se un nodo non ha nessuna transazione da fare, inoltra subito il token al successore.
+- Il saldo del conto viaggia dentro il token. Chi riceve il token legge il saldo, esegue la sua operazione, scrive il nuovo saldo nel token e lo passa avanti.
+
+In questo modo le transazioni sono eseguite una alla volta, in ordine, e non possono mai sovrapporsi. Siccome il token continua a girare, tutti i nodi riescono prima o poi a eseguire la loro transazione.
+
+## Transazioni previste
+
+Il conto parte da un saldo iniziale di 1000 euro. Il token parte da ATM1.
+
+| Nodo | Transazione | Saldo dopo l'operazione |
+| --- | --- | --- |
+| ATM1 | Nessuna transazione, inoltra il token | 1000 |
+| ATM2 | Prelievo di 200 | 800 |
+| ATM3 | Deposito di 100 | 900 |
+| ATM4 | Prelievo di 500 | 400 |
+
+Il saldo finale atteso è quindi 400 euro.
+
+Ogni transazione viene eseguita in modo atomico e comprende la lettura del saldo dal token, il controllo che il prelievo sia possibile, l'aggiornamento del saldo, la scrittura del nuovo saldo nel token e la registrazione dell'operazione nei log.
+
+## Struttura dei file
+
+| File | Descrizione |
+| --- | --- |
+| atm_node.py | Codice del nodo ATM: server, client, gestione del token e logica della sezione critica |
+| requirements.txt | Nessuna dipendenza esterna, viene usato solo Python standard |
+| start_demo_windows.bat | Script per avviare velocemente i 4 nodi su Windows |
+| start_demo.sh | Script per avviare velocemente i 4 nodi su Linux / macOS |
+| README.md | Questo file |
+
+## Come avviare il progetto
 
 ### Prerequisiti
-- Python 3.8+ (consigliato 3.10)
-- Sistema operativo: Windows / Linux / macOS
-- 4 terminali / console separati
+
+- Python 3 installato
+- Sistema operativo Windows, Linux o macOS
+- 4 terminali separati
 - Porte 5001-5004 libere su localhost
 
-### Comandi per avviare i 4 nodi (OBBLIGATORI - da copiare esattamente)
+Non serve installare librerie aggiuntive e non serve compilare niente, il codice Python si avvia direttamente.
 
-**IMPORTANTE:** Avviare i nodi in ordine inverso (4,3,2,1) oppure tutti quasi contemporaneamente per evitare retry lunghi. Il sistema ha retry automatico.
+### Comandi
 
-**Terminale 1 - ATM1 (Initial Token Holder, saldo iniziale 1000, nessuna transazione):**
+Aprire 4 terminali separati e avviare un nodo in ognuno. Per evitare attese lunghe conviene avviarli in ordine inverso, dal 4 all'1, oppure tutti subito uno dopo l'altro.
+
+**Terminale 1 - ATM1 (possiede il token all'inizio, saldo iniziale 1000, nessuna transazione):**
 ```bash
 python atm_node.py --id 1 --port 5001 --succ-port 5002 --initial-holder --initial-balance 1000
 ```
 
-**Terminale 2 - ATM2 (Prelievo 200 come da esempio specifica):**
+**Terminale 2 - ATM2 (prelievo di 200):**
 ```bash
 python atm_node.py --id 2 --port 5002 --succ-port 5003 --transactions withdraw:200
 ```
 
-**Terminale 3 - ATM3 (Deposito 100):**
+**Terminale 3 - ATM3 (deposito di 100):**
 ```bash
 python atm_node.py --id 3 --port 5003 --succ-port 5004 --transactions deposit:100
 ```
 
-**Terminale 4 - ATM4 (Prelievo 500):**
+**Terminale 4 - ATM4 (prelievo di 500):**
 ```bash
 python atm_node.py --id 4 --port 5004 --succ-port 5001 --transactions withdraw:500
 ```
 
-**Comando con transazioni multiple (esempio avanzato):**
-```bash
-python atm_node.py --id 2 --port 5002 --succ-port 5003 --transactions withdraw:200,deposit:50,withdraw:100
-```
+Su Windows, se il comando `python` non viene riconosciuto, usare `py` al posto di `python`.
 
-### Associazione Nodo-Terminale
+Ogni terminale corrisponde ad un solo ATM. Nei log ogni riga inizia con l'ora e con il nome del nodo, ad esempio `[ATM2]`, così si capisce subito quale terminale sta parlando.
 
-- Ogni terminale mostra chiaramente `[HH:MM:SS.mmm][ATMx]` nei log
-- Titolo del terminale: si consiglia di rinominare manualmente (es. "ATM1 - 5001")
-- Log distinguibili: Ricezione token, Inoltro token, Inizio/Fine transazione, Saldo aggiornato
-- Per riconoscere: ATM1 log iniziale `POSSESSO INIZIALE DEL TOKEN`, altri `RICEZIONE TOKEN`
+### Esempio di esecuzione
 
-### Sequenza di Esecuzione Attesa (Esempio Specifica)
+Quando si avviano i 4 nodi, nei log si vede questa sequenza:
 
-Stato iniziale: Saldo 1000, Token in ATM1
+1. ATM1 possiede il token, non ha transazioni e lo inoltra a ATM2 (Saldo: 1000 euro).
+2. ATM2 riceve il token, esegue il prelievo di 200 e lo inoltra a ATM3 (Saldo: 800 euro).
+3. ATM3 riceve il token, esegue il deposito di 100 e lo inoltra a ATM4 (Saldo: 900 euro).
+4. ATM4 riceve il token, esegue il prelievo di 500 e lo inoltra a ATM1 (Saldo: 400 euro).
+5. Il token continua a circolare con saldo 400, senza altre transazioni.
 
-1. ATM1 possiede token, nessuna transazione → inoltra a ATM2 (Saldo 1000)
-2. ATM2 riceve token, esegue prelievo 200 → Saldo 800 → inoltra a ATM3
-3. ATM3 riceve token, deposito 100 → Saldo 900 → inoltra a ATM4
-4. ATM4 riceve token, prelievo 500 → Saldo 400 → inoltra a ATM1
-5. Token continua a circolare (liveness dimostrata), nessun altro prelievo
+Per fermare il sistema basta premere `Ctrl+C` in ogni terminale.
 
-Log mostrano assenza di transazioni concorrenti (Safety).
+## Log
 
-## Logging Richiesto (Implementato)
+Ogni nodo registra nei log:
+- Ricezione del token
+- Inoltro del token al successore
+- Inizio e fine della transazione
+- Saldo aggiornato dopo ogni transazione
 
-Ogni nodo registra:
-- ✅ Ricezione token con seq e balance
-- ✅ Inoltro token al successore
-- ✅ Inizio transazione (lettura saldo)
-- ✅ Fine transazione (scrittura nuovo saldo)
-- ✅ Saldo aggiornato
-- ✅ Movimento token e assenza concorrenza
+Dai log si vede chiaramente il movimento del token e che in ogni momento solo un nodo sta eseguendo una transazione.
 
-## Video Dimostrativo - Cosa Mostrare
+## Video dimostrativo
 
-1. Aprire 4 terminali affiancati
-2. Avviare i 4 comandi sopra (mostrare che ogni nodo è in console separata)
-3. Evidenziare circolazione token con timestamp
-4. Mostrare esecuzione transazioni in ordine ATM2→ATM3→ATM4
-5. Mostrare saldo finale 400 coerente
-6. Lasciare circolare token per 10-20 secondi per dimostrare liveness
-7. Ctrl+C per chiusura
-
-## Gestione Guasti (Teoria PDF p.359 - Implementata parzialmente per robustezza)
-
-- Retry automatico di connessione al successore (max 20 tentativi con backoff)
-- Epoch nel token per futura estensione di rigenerazione token in caso di crash del detentore
-- Server resiliente a disconnessioni
-
-## Codice Commentato - Punti Chiave
-
-- `start_server()`: Socket TCP server, ricezione token JSON line-delimited, queue thread-safe
-- `forward_token()`: Client TCP con retry, garantisce consegna al successore logico
-- `execute_transaction()`: Sezione critica atomica, validazione prelievo, log
-- `run()`: Loop principale token ring, initial holder crea token, altri attendono
-
-Nessuna variabile globale condivisa, solo scambio messaggi.
+Il video dimostrativo del funzionamento, disponibile nel repository, mostra i 4 nodi in esecuzione su 4 terminali separati, la circolazione del token e l'esecuzione delle transazioni con saldo finale 400 euro.
