@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "Avvio demo Progetto 1 - Token Ring - 4 ATM su localhost"
-echo "Assicurati di avere 4 terminali separati. Questo script avvia tutto in background per test rapido."
+echo "Assicurarsi di avere 4 terminali separati. Questo script avvia tutto in background per test rapido."
 echo ""
 
 # Avvio in background con log separati
@@ -15,7 +15,7 @@ python3 atm_node.py --id 1 --port 5001 --succ-port 5002 --initial-holder --initi
 echo "Nodi avviati in background. PID:"
 jobs
 echo ""
-echo "Attendi 15 secondi poi controlla i log..."
+echo "Attendere 15 secondi, poi controllare i log..."
 sleep 15
 echo "=== ATM1 ==="; cat atm1.log
 echo "=== ATM2 ==="; cat atm2.log
