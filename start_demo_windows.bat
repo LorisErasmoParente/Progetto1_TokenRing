@@ -7,4 +7,4 @@ timeout /t 1
 start "ATM2 - 5002->5003" cmd /k python atm_node.py --id 2 --port 5002 --succ-port 5003 --transactions withdraw:200
 timeout /t 1
 start "ATM1 - 5001->5002 INITIAL HOLDER" cmd /k python atm_node.py --id 1 --port 5001 --succ-port 5002 --initial-holder --initial-balance 1000
-echo Tutti i nodi avviati in finestre separate. Controlla le 4 finestre.
+echo Tutti i nodi avviati in finestre separate. Controllare le 4 finestre.
